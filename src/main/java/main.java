@@ -31,19 +31,16 @@ public class main {
         // Display settings dialog to let the user modify program settings
         SettingsDialog settingsDialog = new SettingsDialog();
         settingsDialog.setVisible(true);
-
-        boolean autoOpen = settingsDialog.isAutoOpen();
-        boolean duplicateOnClose = settingsDialog.isDuplicateOnClose();
-
+        
         // Use the values from the dialog for configuring the program
         int initialWindowCount = settingsDialog.getWindowCount();
-
+        
         // Schedule program exit after the user-defined runtime
         new Timer(main.runtimeInSeconds * 1000, event -> System.exit(0)).start();
 
         // Create prank windows
         for (int i = 0; i < initialWindowCount; i++) {
-            PrankWindow prank = new PrankWindow(autoOpen, duplicateOnClose);
+            PrankWindow prank = new PrankWindow();
             prank.start();
             totalWindows++;
         }
@@ -55,14 +52,12 @@ class PrankWindow extends JFrame {
     JWindow redOverlay = new JWindow();
 
     private static boolean windowOpen = false;
-    private static boolean duplicateOnClose; // Updated to use setting from UI
 
-    public PrankWindow(boolean autoOpen, boolean duplicateOnCloseSetting) {
-        duplicateOnClose = duplicateOnCloseSetting;
+    public PrankWindow() {
         // Set basic properties for the window
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-        if (autoOpen && !windowOpen) {
-            Timer discoTimer = new Timer(100, e -> { // Change color every 100ms
+        if (!windowOpen) {
+            Timer discoTimer = new Timer(100, e -> { // Change color every 200ms
                 Color randomColor = new Color(random.nextInt(256), random.nextInt(256), random.nextInt(256), 100);
                 redOverlay.setBackground(randomColor); // Random semi-transparent color
             });
@@ -79,19 +74,19 @@ class PrankWindow extends JFrame {
             @Override
             public void windowClosed(WindowEvent e) {
                 int newSpeed = 10; // Increase speed for new windows
-                if (duplicateOnClose && main.totalWindows < main.windowLimit) {
+                if (main.totalWindows < main.windowLimit) {
                     for (int i = 0; i < 2 && main.totalWindows < main.windowLimit; i++) {
-                        PrankWindow newPrank = new PrankWindow(false, duplicateOnClose);
+                        PrankWindow newPrank = new PrankWindow();
                         newPrank.start(newSpeed);
                         main.totalWindows++;
                     }
+                } else {
+                    dispose(); // Dispose of a window when the limit is reached
+                    main.totalWindows--;
                 }
-                main.totalWindows--;
             }
         });
-    }
 
-    public PrankWindow() {
         // Add a funny message
         JLabel label = new JLabel("WARNING MALWARE DETECTED!", SwingConstants.CENTER);
         label.setFont(new Font("Arial", Font.BOLD, 20));
@@ -134,7 +129,7 @@ class PrankWindow extends JFrame {
         // Schedule automatic window closing for this window specifically
         new Timer(500 + random.nextInt(1500), e -> { // Randomize timer between 500ms and 2000ms
             if (main.totalWindows < main.windowLimit) {
-                PrankWindow newPrank = new PrankWindow(false, duplicateOnClose);
+                PrankWindow newPrank = new PrankWindow();
                 newPrank.start();
                 main.totalWindows++;
             } else {
@@ -198,20 +193,43 @@ class SettingsDialog extends JDialog {
         add(new JLabel("Program Runtime (seconds): ", SwingConstants.RIGHT));
         JTextField runtimeField = new JTextField("10");
         add(runtimeField);
-
+        
         add(new JLabel("Base Speed of Windows: ", SwingConstants.RIGHT));
         JTextField speedField = new JTextField("5");
         add(speedField);
-
+        
+        add(new JLabel("Maximum Number of Windows: ", SwingConstants.RIGHT));
+        JTextField windowLimitField = new JTextField("15");
+        add(windowLimitField);
+        
         // Add OK button to save settings
         JButton okButton = new JButton("OK");
         okButton.addActionListener(e -> {
             try {
                 windowCount = Integer.parseInt(windowCountField.getText());
                 int runtime = Integer.parseInt(runtimeField.getText());
-                if (windowCount <= 0 || runtime <= 0) throw new NumberFormatException();
+                int speed = Integer.parseInt(speedField.getText());
+                int limit = Integer.parseInt(windowLimitField.getText());
+                
+                if (windowCount <= 0 || runtime <= 0 || speed <= 0 || limit <= 0) throw new NumberFormatException();
+        
+                // Show warning pop-up if any value exceeds 500
+                if (windowCount > 500 || runtime > 500 || speed > 500 || limit > 500) {
+                    int warningResponse = JOptionPane.showConfirmDialog(
+                            this,
+                            "One or more values exceed 500. This may impact system performance. Do you want to proceed?",
+                            "High Value Warning",
+                            JOptionPane.YES_NO_OPTION,
+                            JOptionPane.WARNING_MESSAGE
+                    );
+                    if (warningResponse != JOptionPane.YES_OPTION) {
+                        return; // Do not proceed if user chooses "No"
+                    }
+                }
+        
                 main.runtimeInSeconds = runtime; // Pass runtime to main
-                main.baseSpeed = Integer.parseInt(speedField.getText()); // Pass speed to main
+                main.baseSpeed = speed; // Pass speed to main
+                main.windowLimit = limit; // Pass window limit to main
                 dispose();
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(this, "Please enter valid positive integers", "Error", JOptionPane.ERROR_MESSAGE);
@@ -232,13 +250,5 @@ class SettingsDialog extends JDialog {
 
     public int getWindowCount() {
         return windowCount;
-    }
-
-    public boolean isAutoOpen() {
-        return false; // Default or placeholder value
-    }
-
-    public boolean isDuplicateOnClose() {
-        return false; // Default or placeholder value
     }
 }
